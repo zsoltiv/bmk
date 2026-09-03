@@ -11,102 +11,122 @@ FITNESS FOR A PARTICULAR PURPOSE.
 See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with bmk.
-If not, see <https://www.gnu.org/licenses/>. 
+If not, see <https://www.gnu.org/licenses/>.
 '''
 
 import pymupdf
-
-from dataclasses import dataclass
-import re
 
 from .redactor import Redactor, TextExtractKind
 from .utils import rawdict as rd
 from .utils import regex as reg
 
-@dataclass
+
 class UnicreditRedactor(Redactor):
-    def __post_init__(self):
-        self.extract_kind = TextExtractKind.RAWDICT
+    def __init__(self, doc: pymupdf.Document, output_filename: str, extract_kind: TextExtractKind = TextExtractKind.RAWDICT) -> None:
+        super().__init__(doc, output_filename, extract_kind)
 
         self.spendings_start_page_idx = -1
-        
-    
-    def footer_redact_sensitive_value(self, page, page_text, substr):
-    
+        self.spendings_ended = False
+
+
+    def footer_redact_sensitive_value(self, page : pymupdf.Page, page_text, substr) -> bool:
+
         text_idx = rd.block_idx_by_text(page_text, substr)
-        if text_idx is -1:
+        if text_idx == -1:
             return False
-    
+
         # következő blokkban van az érték
         value_idx = text_idx + 1
-        if value_idx > len(page_text):
+        if value_idx >= len(page_text):
             return False
-    
-        rect_to_redact = pymupdf.Rect(page_text[value_idx]['lines'][0]['spans'][0]['bbox'])
-        page.add_redact_annot(rect_to_redact, fill=self.REDACTION_COLOR)
-    
-        return True
+
+        try:
+            rect_to_redact = pymupdf.Rect(page_text[value_idx]['lines'][0]['spans'][0]['bbox'])
+            page.add_redact_annot(rect_to_redact, fill=self.REDACTION_COLOR)
+            return True
+        except IndexError:
+            return False
 
 
-    def redact_iban_and_account_numbers(self, page, page_text):
+    def redact_iban_and_account_numbers(self, page: pymupdf.Page, page_text) -> bool:
         iban_and_account_idx = rd.block_idx_by_text(page_text, 'IBAN')
-        if iban_and_account_idx is -1:
+        if iban_and_account_idx == -1:
             return False
-    
+
         values_idx = iban_and_account_idx + 1
-    
-        account_rect = pymupdf.Rect(page_text[values_idx]['lines'][0]['spans'][0]['bbox'])
-        iban_rect = pymupdf.Rect(page_text[values_idx]['lines'][1]['spans'][0]['bbox'])
-    
-        page.add_redact_annot(account_rect, fill=self.REDACTION_COLOR)
-        page.add_redact_annot(iban_rect, fill=self.REDACTION_COLOR)
-    
-        return True
-    
-    
-    def redact_initial_balance(self, page, page_text):
-        initial_balance_text_idx = rd.block_idx_by_text(page_text, 'Nyitó egyenleg')
-        if initial_balance_text_idx is -1:
+        if values_idx >= len(page_text):
             return False
-    
+
+        try:
+            account_rect = pymupdf.Rect(page_text[values_idx]['lines'][0]['spans'][0]['bbox'])
+            iban_rect = pymupdf.Rect(page_text[values_idx]['lines'][1]['spans'][0]['bbox'])
+
+            page.add_redact_annot(account_rect, fill=self.REDACTION_COLOR)
+            page.add_redact_annot(iban_rect, fill=self.REDACTION_COLOR)
+            return True
+        except IndexError:
+            return False
+
+
+    def redact_initial_balance(self, page: pymupdf.Page, page_text) -> bool:
+        initial_balance_text_idx = rd.block_idx_by_text(page_text, 'Nyitó egyenleg')
+        if initial_balance_text_idx == -1:
+            return False
+
         initial_balance_idx = initial_balance_text_idx + 1
-    
-        rect_to_redact = pymupdf.Rect(page_text[initial_balance_idx]['lines'][3]['spans'][0]['bbox'])
-        page.add_redact_annot(rect_to_redact, fill=self.REDACTION_COLOR)
-    
-        return True
-    
-    
-    def has_spendings(self, page_text):
+        if initial_balance_idx >= len(page_text):
+            return False
+
+        try:
+            rect_to_redact = pymupdf.Rect(page_text[initial_balance_idx]['lines'][3]['spans'][0]['bbox'])
+            page.add_redact_annot(rect_to_redact, fill=self.REDACTION_COLOR)
+            return True
+        except IndexError:
+            return False
+
+
+    def has_spendings(self, page_text) -> bool:
         idx = rd.block_idx_by_text(page_text, 'Terhelések')
         return idx != -1
-    
-    
-    def redact_spendings(self, page, page_text, page_idx):
-        account_activity_idx = rd.block_idx_by_regex(page_text, reg.SPENDING_PATTERN)
+
+
+    def redact_spendings(self, page: pymupdf.Page, page_text, page_idx: int) -> None:
+        if self.spendings_ended:
+            return
+
         found_spendings_marker = False
-    
         # A dátumokat meghagyjuk, mert egyszer már így megfelelt
         should_keep = lambda text: reg.MONTH_DAY_PATTERN.match(text) or reg.DATE_PATTERN.match(text) or text.isspace()
-    
-        for line in page_text[account_activity_idx]['lines']:
-            for span in line['spans']:
-                text = rd.extract_span_text(span)
-                if reg.SPENDING_PATTERN.match(text):
-                    # Mivel a '-' jelnek látszania kell, így az első karaktert nem takarjuk ki
-                    chars_to_redact = span['chars'][1:]
-    
-                    page.add_redact_annot(rd.compute_substring_bounding_box(chars_to_redact), fill=self.REDACTION_COLOR)
-                else:
-                    # A 'Terhelések' szöveg után minden szöveget kitakarhatunk,
-                    # de a dátumokat meghagyjuk, egyszer már így elfogadták
-                    if (found_spendings_marker or page_idx > self.spendings_start_page_idx) and not should_keep(text):
-                        page.add_redact_annot(span['bbox'], fill=self.REDACTION_COLOR)
-                    elif 'Terhelések' in text:
+
+        for block in page_text:
+            for line in block['lines']:
+                for span in line['spans']:
+                    text = rd.extract_span_text(span)
+
+                    if 'Terhelések összesen' in text or 'Záró egyenleg' in text:
+                        self.spendings_ended = True
+                        return
+
+                    if 'Terhelések' in text:
                         found_spendings_marker = True
+                        continue
+
+                    is_in_spendings_section = found_spendings_marker or (page_idx > self.spendings_start_page_idx and self.spendings_start_page_idx != -1)
+
+                    if not is_in_spendings_section:
+                        continue
+
+                    if reg.SPENDING_PATTERN.match(text):
+                        chars_to_redact = span['chars'][1:]
+                        if chars_to_redact:
+                            page.add_redact_annot(rd.compute_substring_bounding_box(chars_to_redact), fill=self.REDACTION_COLOR)
+
+                    elif not should_keep(text):
+                        page.add_redact_annot(span['bbox'], fill=self.REDACTION_COLOR)
 
 
-    def process_page(self, page: pymupdf.Page, page_idx: int, extracted_text):
+
+    def process_page(self, page: pymupdf.Page, page_idx: int, extracted_text) -> None:
         page_text = [b for b in extracted_text['blocks'] if b['type'] == 0]
 
         if self.spendings_start_page_idx == -1 and self.has_spendings(page_text):
