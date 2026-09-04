@@ -26,7 +26,6 @@ class UnicreditRedactor(Redactor):
         super().__init__(doc, output_filename, extract_kind)
 
         self.spendings_start_page_idx = -1
-        self.spendings_ended = False
 
 
     def footer_redact_sensitive_value(self, page : pymupdf.Page, page_text, substr) -> bool:
