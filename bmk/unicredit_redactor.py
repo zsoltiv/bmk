@@ -91,7 +91,6 @@ class UnicreditRedactor(Redactor):
 
 
     def redact_spendings(self, page: pymupdf.Page, page_text, page_idx: int) -> None:
-            return
 
         found_spendings_marker = False
         # A dátumokat meghagyjuk, mert egyszer már így megfelelt
