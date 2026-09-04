@@ -104,7 +104,6 @@ class UnicreditRedactor(Redactor):
                     text = rd.extract_span_text(span)
 
                     if 'Terhelések összesen' in text or 'Záró egyenleg' in text:
-                        return
 
                     if 'Terhelések' in text:
                         found_spendings_marker = True
