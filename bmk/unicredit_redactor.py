@@ -24,12 +24,9 @@ from .utils import regex as reg
 class UnicreditRedactor(Redactor):
     def __init__(self, doc: pymupdf.Document, output_filename: str, extract_kind: TextExtractKind = TextExtractKind.RAWDICT) -> None:
         super().__init__(doc, output_filename, extract_kind)
-
         self.spendings_start_page_idx = -1
 
-
-    def footer_redact_sensitive_value(self, page : pymupdf.Page, page_text, substr) -> bool:
-
+    def footer_redact_sensitive_value(self, page: pymupdf.Page, page_text, substr) -> bool:
         text_idx = rd.block_idx_by_text(page_text, substr)
         if text_idx == -1:
             return False
@@ -45,7 +42,6 @@ class UnicreditRedactor(Redactor):
             return True
         except IndexError:
             return False
-
 
     def redact_iban_and_account_numbers(self, page: pymupdf.Page, page_text) -> bool:
         iban_and_account_idx = rd.block_idx_by_text(page_text, 'IBAN')
@@ -66,7 +62,6 @@ class UnicreditRedactor(Redactor):
         except IndexError:
             return False
 
-
     def redact_initial_balance(self, page: pymupdf.Page, page_text) -> bool:
         initial_balance_text_idx = rd.block_idx_by_text(page_text, 'Nyitó egyenleg')
         if initial_balance_text_idx == -1:
@@ -83,42 +78,38 @@ class UnicreditRedactor(Redactor):
         except IndexError:
             return False
 
-
     def has_spendings(self, page_text) -> bool:
         idx = rd.block_idx_by_text(page_text, 'Terhelések')
         return idx != -1
 
-
     def redact_spendings(self, page: pymupdf.Page, page_text, page_idx: int) -> None:
+        spendings_block_idx = rd.block_idx_by_regex(page_text, reg.SPENDING_PATTERN)
+        if spendings_block_idx == -1:
+            return
 
         found_spendings_marker = False
-        # A dátumokat meghagyjuk, mert egyszer már így megfelelt
         should_keep = lambda text: reg.MONTH_DAY_PATTERN.match(text) or reg.DATE_PATTERN.match(text) or text.isspace()
 
-        spendings_block = rd.block_idx_by_regex(page_text, reg.SPENDING_PATTERN)
-        for line in page_text[spendings_block]['lines']:
-                for span in line['spans']:
-                    text = rd.extract_span_text(span)
+        for line in page_text[spendings_block_idx]['lines']:
+            for span in line['spans']:
+                text = rd.extract_span_text(span)
 
+                if 'Terhelések' in text:
+                    found_spendings_marker = True
+                    continue
 
-                    if 'Terhelések' in text:
-                        found_spendings_marker = True
-                        continue
+                is_in_spendings_section = found_spendings_marker or (page_idx > self.spendings_start_page_idx and self.spendings_start_page_idx != -1)
 
-                    is_in_spendings_section = found_spendings_marker or (page_idx > self.spendings_start_page_idx and self.spendings_start_page_idx != -1)
+                if not is_in_spendings_section:
+                    continue
 
-                    if not is_in_spendings_section:
-                        continue
+                if reg.SPENDING_PATTERN.match(text):
+                    chars_to_redact = span['chars'][1:]
+                    if chars_to_redact:
+                        page.add_redact_annot(rd.compute_substring_bounding_box(chars_to_redact), fill=self.REDACTION_COLOR)
 
-                    if reg.SPENDING_PATTERN.match(text):
-                        chars_to_redact = span['chars'][1:]
-                        if chars_to_redact:
-                            page.add_redact_annot(rd.compute_substring_bounding_box(chars_to_redact), fill=self.REDACTION_COLOR)
-
-                    elif not should_keep(text):
-                        page.add_redact_annot(span['bbox'], fill=self.REDACTION_COLOR)
-
-
+                elif not should_keep(text):
+                    page.add_redact_annot(span['bbox'], fill=self.REDACTION_COLOR)
 
     def process_page(self, page: pymupdf.Page, page_idx: int, extracted_text) -> None:
         page_text = [b for b in extracted_text['blocks'] if b['type'] == 0]
