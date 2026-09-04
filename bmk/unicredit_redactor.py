@@ -98,7 +98,7 @@ class UnicreditRedactor(Redactor):
         # A dátumokat meghagyjuk, mert egyszer már így megfelelt
         should_keep = lambda text: reg.MONTH_DAY_PATTERN.match(text) or reg.DATE_PATTERN.match(text) or text.isspace()
 
-        for block in page_text:
+        spendings_block = rd.block_idx_by_regex(page_text, reg.SPENDING_PATTERN)
             for line in block['lines']:
                 for span in line['spans']:
                     text = rd.extract_span_text(span)
