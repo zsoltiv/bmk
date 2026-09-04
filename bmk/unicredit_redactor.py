@@ -99,7 +99,7 @@ class UnicreditRedactor(Redactor):
         should_keep = lambda text: reg.MONTH_DAY_PATTERN.match(text) or reg.DATE_PATTERN.match(text) or text.isspace()
 
         spendings_block = rd.block_idx_by_regex(page_text, reg.SPENDING_PATTERN)
-            for line in block['lines']:
+        for line in page_text[spendings_block]['lines']:
                 for span in line['spans']:
                     text = rd.extract_span_text(span)
 
