@@ -20,15 +20,17 @@ from sys import exit, stderr
 
 import pymupdf
 
+from .erste_redactor import ErsteRedactor
+from .mbh_ocr_redactor import MbhOcrRedactor
 from .otp_redactor import OtpRedactor
 from .redactor import Redactor
 from .unicredit_redactor import UnicreditRedactor
-from .mbh_ocr_redactor import MbhOcrRedactor
 
 ALL_REDACTORS: dict[str, type[Redactor]] = {
     'unicredit': UnicreditRedactor,
     'otp': OtpRedactor,
-    'mbh-ocr': MbhOcrRedactor
+    'mbh-ocr': MbhOcrRedactor,
+    'erste': ErsteRedactor,
 }
 
 def main() -> None:

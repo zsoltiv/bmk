@@ -83,7 +83,7 @@ class UnicreditRedactor(Redactor):
         return idx != -1
 
     def redact_spendings(self, page: pymupdf.Page, page_text, page_idx: int) -> None:
-        spendings_block_idx = rd.block_idx_by_regex(page_text, reg.SPENDING_PATTERN)
+        spendings_block_idx = rd.block_idx_by_regex(page_text, reg.GENERIC_SPENDING_PATTERN)
         if spendings_block_idx == -1:
             return
 
@@ -103,7 +103,7 @@ class UnicreditRedactor(Redactor):
                 if not is_in_spendings_section:
                     continue
 
-                if reg.SPENDING_PATTERN.match(text):
+                if reg.GENERIC_SPENDING_PATTERN.match(text):
                     chars_to_redact = span['chars'][1:]
                     if chars_to_redact:
                         page.add_redact_annot(rd.compute_substring_bounding_box(chars_to_redact), fill=self.REDACTION_COLOR)

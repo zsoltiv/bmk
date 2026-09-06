@@ -14,17 +14,16 @@ You should have received a copy of the GNU General Public License along with bmk
 If not, see <https://www.gnu.org/licenses/>.
 '''
 
-from .redactor import Redactor, TextExtractKind
-from .utils import rawdict as rd
-from .utils import regex as reg
-from .utils import ocr
-
-import re
 import os
+import re
 from concurrent.futures import ProcessPoolExecutor
 
 import pymupdf
 
+from .redactor import Redactor, TextExtractKind
+from .utils import ocr
+from .utils import rawdict as rd
+from .utils import regex as reg
 
 #def run_ocr(filename, pagenum, dpi, h, threshold):
 #    with pymupdf.open(filename) as doc:
