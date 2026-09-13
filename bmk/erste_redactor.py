@@ -20,7 +20,6 @@ import pymupdf
 
 from .redactor import Redactor, TextExtractKind
 from .utils.rawdict import Word, find_numbers_next_to_text
-from .utils.regex import ERSTE_SPENDING_PATTERN
 
 
 class ErsteRedactor(Redactor):
@@ -28,6 +27,8 @@ class ErsteRedactor(Redactor):
         super().__init__(doc, output_filename, extract_kind)
 
         self.redacted_initial_balance: bool = False
+
+        self.ERSTE_SPENDING_PATTERN: re.Pattern[str] = re.compile(r'^(-)?(\d+(?:\.\d+)?(?:,\d+)?)$')
 
         self.prev_tx_was_negative: bool = False # tx = transaction
         self.saved_col_x_min: float | None = None
@@ -77,7 +78,7 @@ class ErsteRedactor(Redactor):
             in_same_column: bool = (col_x_min <= w_x0 <= col_x_max)
             in_same_row: bool = (y_search_top <= w_y_center <= y_search_bottom)
 
-            if in_same_column and in_same_row and re.match(ERSTE_SPENDING_PATTERN, text):
+            if in_same_column and in_same_row and re.match(self.ERSTE_SPENDING_PATTERN, text):
                     page.add_redact_annot(pymupdf.Rect(word[:4]), fill=self.REDACTION_COLOR)
                     break
 
@@ -116,7 +117,7 @@ class ErsteRedactor(Redactor):
                         page.add_redact_annot(word_bbox, fill=self.REDACTION_COLOR)
                     continue
 
-                match = re.match(ERSTE_SPENDING_PATTERN, text)
+                match = re.match(self.ERSTE_SPENDING_PATTERN, text)
                 if match:
                     has_minus = bool(match.group(1))
 
@@ -158,7 +159,7 @@ class ErsteRedactor(Redactor):
         for word in page_text:
             w_x0, w_y0, w_x1, w_y1, text = word[:5]
             if float(w_x0) >= col_x_min and float(w_x1) <= col_x_max and float(w_y0) >= header_y:
-                match = re.match(ERSTE_SPENDING_PATTERN, text)
+                match = re.match(self.ERSTE_SPENDING_PATTERN, text)
                 if match:
                     transactions.append({
                         'y0': w_y0,
@@ -248,7 +249,7 @@ class ErsteRedactor(Redactor):
         ]
 
         for label in labels_for_numbers_accounted_for:
-            words = find_numbers_next_to_text(page, label, page_text, regex=ERSTE_SPENDING_PATTERN)
+            words = find_numbers_next_to_text(page, label, page_text, regex=self.ERSTE_SPENDING_PATTERN)
             if not words:
                 continue
 

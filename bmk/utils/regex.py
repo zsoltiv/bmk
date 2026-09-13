@@ -17,8 +17,6 @@ If not, see <https://www.gnu.org/licenses/>.
 import re
 
 GENERIC_SPENDING_PATTERN: re.Pattern[str] = re.compile(r'\-[0-9]{1,3}(?:\.[0-9]{3})*,\d{2}') #-YYYY-MM-DD
-DATE_PATTERN: re.Pattern[str] = re.compile(r'[0-9]{4}\.[0-9]{2}\.[0-9]{2}') # maybe deprecate and get rid of? why redact dates?
+DATE_PATTERN: re.Pattern[str] = re.compile(r'[0-9]{4}\.[0-9]{2}\.[0-9]{2}')
 MONTH_DAY_PATTERN: re.Pattern[str] = re.compile(r'[0-9]{2}\/[0-9]{2}') # same with the normal date pattern
 
-#-YYYY-MM-DD with positive lookforward applied to -, the negative sign is ignored but is required
-ERSTE_SPENDING_PATTERN: re.Pattern[str] = re.compile(r'^(-)?(\d+(?:\.\d+)?(?:,\d+)?)$')
